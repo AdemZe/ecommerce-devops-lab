@@ -1,0 +1,20 @@
+
+# deploy.yml — Main Ansible playbook
+# Installs Docker + Docker Compose then launches the app stack
+---
+- name: Configure web servers and deploy e-commerce app
+  hosts: web
+  become: true
+  gather_facts: true
+
+  vars:
+    app_dir: /opt/ecommerce
+    node_port: 3000
+    mongo_port: 27017
+
+  roles:
+    - docker
+    - app
+
+
+

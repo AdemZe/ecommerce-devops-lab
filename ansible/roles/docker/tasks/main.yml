@@ -1,0 +1,57 @@
+###############################################################
+# roles/docker/tasks/main.yml
+# Installs Docker CE + Docker Compose v2 on Amazon Linux 2
+###############################################################
+---
+- name: Update all packages
+  ansible.builtin.yum:
+    name: "*"
+    state: latest
+    update_cache: true
+
+- name: Install prerequisites
+  ansible.builtin.yum:
+    name:
+      - yum-utils
+      - device-mapper-persistent-data
+      - lvm2
+      - python3
+      - python3-pip
+    state: present
+
+- name: Add Docker CE repository
+  ansible.builtin.command:
+    cmd: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  args:
+    creates: /etc/yum.repos.d/docker-ce.repo
+
+- name: Install Docker CE
+  ansible.builtin.yum:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+
+- name: Start and enable Docker service
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Add ec2-user to docker group
+  ansible.builtin.user:
+    name: ec2-user
+    groups: docker
+    append: true
+
+- name: Verify Docker is running
+  ansible.builtin.command: docker --version
+  register: docker_version
+  changed_when: false
+
+- name: Print Docker version
+  ansible.builtin.debug:
+    msg: "{{ docker_version.stdout }}"

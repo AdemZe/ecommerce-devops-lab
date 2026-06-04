@@ -1,0 +1,176 @@
+###############################################################
+# .github/workflows/pipeline.yml
+# Full DevOps Pipeline: Terraform → Ansible → App deploy
+###############################################################
+
+
+name: Full DevOps Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:     # Manual trigger (also used for destroy)
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        default: "deploy"
+        type: choice
+        options:
+          - deploy
+          - destroy
+
+env:
+  TF_DIR: terraform/envs/prod
+  ANSIBLE_DIR: ansible
+
+jobs:
+
+  terraform:
+    name: "Provision Infrastructure"
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action != 'destroy'
+
+    defaults:
+      run:
+        working-directory: terraform/envs/prod
+
+    outputs:
+      instance_ips: ${{ steps.export_ips.outputs.instance_ips }}
+      alb_dns:      ${{ steps.export_ips.outputs.alb_dns }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5"
+
+      - name: Terraform Init (remote backend)
+        run: terraform init
+
+      - name: Terraform Format check
+        run: terraform fmt -check -recursive
+        continue-on-error: true   # warn only
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan -var-file=terraform.tfvars
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Export instance IPs + ALB DNS
+        id: export_ips
+        run: |
+          IPS=$(terraform output -json instance_public_ips | jq -r '.[]' | tr '\n' ',')
+          ALB=$(terraform output -raw alb_dns_name)
+          echo "instance_ips=$IPS" >> $GITHUB_OUTPUT
+          echo "alb_dns=$ALB"      >> $GITHUB_OUTPUT
+          echo "▶ Instances: $IPS"
+          echo "▶ ALB DNS  : $ALB"
+
+  # ============================================================
+  # 2. ANSIBLE — Configure servers + deploy app
+  # ============================================================
+  ansible:
+    name: "Configure Servers & Deploy App"
+    runs-on: ubuntu-latest
+    needs: terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ansible + dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ansible jq python3-boto3
+
+      - name: Write SSH private key
+        run: |
+          echo "${{ secrets.EC2_KEY }}" > key.pem
+          chmod 600 key.pem
+
+      - name: Generate dynamic inventory from Terraform outputs
+        run: |
+          echo "[web]" > inventory_dynamic.ini
+          for ip in $(echo "${{ needs.terraform.outputs.instance_ips }}" | tr ',' ' '); do
+            [ -z "$ip" ] && continue
+            echo "$ip ansible_user=ec2-user ansible_ssh_private_key_file=key.pem" >> inventory_dynamic.ini
+          done
+          echo "" >> inventory_dynamic.ini
+          echo "[web:vars]" >> inventory_dynamic.ini
+          echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory_dynamic.ini
+          echo "▶ Inventory:"
+          cat inventory_dynamic.ini
+
+      - name: Wait for EC2 instances to be reachable
+        run: |
+          for ip in $(echo "${{ needs.terraform.outputs.instance_ips }}" | tr ',' ' '); do
+            [ -z "$ip" ] && continue
+            echo "Waiting for $ip..."
+            timeout 120 bash -c "until nc -z $ip 22; do sleep 5; done"
+            echo "  ✅ $ip is reachable"
+          done
+
+      - name: Run Ansible Deployment
+        run: |
+          ansible-playbook \
+            -i inventory_dynamic.ini \
+            ansible/deploy.yml \
+            --private-key key.pem \
+            -v
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_FORCE_COLOR: "1"
+
+      - name: Print deployment summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Deployment complete!"
+          echo "  ALB URL: http://${{ needs.terraform.outputs.alb_dns }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  # ============================================================
+  # 3. TERRAFORM DESTROY — Manual trigger only
+  # ============================================================
+  destroy:
+    name: "Destroy Infrastructure (Manual)"
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'destroy'
+
+    defaults:
+      run:
+        working-directory: terraform/envs/prod
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -var-file=terraform.tfvars
