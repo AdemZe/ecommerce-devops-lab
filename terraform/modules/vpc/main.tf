@@ -1,13 +1,13 @@
 # Creates: VPC, Internet Gateway, Public Subnets,
-#          Private Subnets, NAT Gateway, Route Tables
+# Private Subnets, NAT Gateway, Route Tables
 
 
 
-local {
-    name_prefix = "${var.project_name}-${var.environement}
+locals {
+    name_prefix = "${var.project_name}-${var.environment}"
 }
 
-# ── VPC ──────────────────────────────────────────────────────
+#── VPC ──────────────────────────────────────────────────────
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true

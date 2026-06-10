@@ -2,7 +2,7 @@
 # Creates: IAM Role (SSM), EC2 instances, ALB attachments
 
 
-local {
+locals {
   name_prefix = "${var.project_name}-${var.environment}"
 }
 
