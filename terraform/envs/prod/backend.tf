@@ -3,6 +3,7 @@
 ###############################################################
 
 terraform {
+  
   backend "s3" {
     bucket         = "ecommerce-devops-tfstate"   # ← change to your bucket name
     key            = "prod/terraform.tfstate"
