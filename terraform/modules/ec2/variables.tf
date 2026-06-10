@@ -32,3 +32,15 @@ variable "ec2_sg_id"          { type = string }
 
 # ARN du target group ALB — fourni par le module alb via le root pour attacher les instances
 variable "target_group_arn"   { type = string }
+
+# AWS Academy often blocks IAM creation. Set to false to skip role/profile creation.
+variable "create_iam_resources" {
+	type    = bool
+	default = true
+}
+
+# Optional pre-existing instance profile name to attach when create_iam_resources = false.
+variable "existing_instance_profile_name" {
+	type    = string
+	default = null
+}

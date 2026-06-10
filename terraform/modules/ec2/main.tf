@@ -8,6 +8,7 @@ locals {
 
 # ── IAM ROLE for EC2 (SSM + CloudWatch) ─────────────────────
 resource "aws_iam_role" "ec2" {
+  count = var.create_iam_resources ? 1 : 0
   name = "${local.name_prefix}-ec2-role"
 
   assume_role_policy = jsonencode({
@@ -21,18 +22,21 @@ resource "aws_iam_role" "ec2" {
 }
 
 resource "aws_iam_role_policy_attachment" "ssm" {
-  role       = aws_iam_role.ec2.name
+  count      = var.create_iam_resources ? 1 : 0
+  role       = aws_iam_role.ec2[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_role_policy_attachment" "cloudwatch" {
-  role       = aws_iam_role.ec2.name
+  count      = var.create_iam_resources ? 1 : 0
+  role       = aws_iam_role.ec2[0].name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
 resource "aws_iam_instance_profile" "ec2" {
+  count = var.create_iam_resources ? 1 : 0
   name = "${local.name_prefix}-ec2-profile"
-  role = aws_iam_role.ec2.name
+  role = aws_iam_role.ec2[0].name
 }
 
 
@@ -46,7 +50,7 @@ resource "aws_instance" "web" {
   key_name               = var.key_pair_name
   subnet_id              = var.private_subnet_ids[count.index % length(var.private_subnet_ids)]
   vpc_security_group_ids = [var.ec2_sg_id]
-  iam_instance_profile   = aws_iam_instance_profile.ec2.name
+  iam_instance_profile   = var.create_iam_resources ? aws_iam_instance_profile.ec2[0].name : var.existing_instance_profile_name
 
   # Minimal user-data — Ansible handles the rest
   user_data = base64encode(<<-EOF

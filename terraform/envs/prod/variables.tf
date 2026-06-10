@@ -72,6 +72,18 @@ variable "ami_id" {
   default     = "ami-0c02fb55956c7d316"   # Amazon Linux 2 LTS — us-east-1
 }
 
+variable "create_iam_resources" {
+  description = "Whether to create IAM role and instance profile in the EC2 module"
+  type        = bool
+  default     = false
+}
+
+variable "existing_instance_profile_name" {
+  description = "Optional existing IAM instance profile name to attach to EC2 when IAM creation is disabled"
+  type        = string
+  default     = null
+}
+
 
 # ── ALB ──────────────────────────────────────────────────────
 variable "health_check_path" {

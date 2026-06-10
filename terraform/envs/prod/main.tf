@@ -71,6 +71,8 @@ module "ec2" {
   private_subnet_ids = module.vpc.private_subnet_ids
   ec2_sg_id          = module.security_groups.ec2_sg_id
   target_group_arn   = module.alb.target_group_arn
+  create_iam_resources        = var.create_iam_resources
+  existing_instance_profile_name = var.existing_instance_profile_name
 }
 
 
