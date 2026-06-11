@@ -1,8 +1,5 @@
-
-# deploy.yml — Main Ansible playbook
-# Installs Docker + Docker Compose then launches the app stack
 ---
-- name: Configure web servers and deploy e-commerce app
+- name: Validate connectivity and deploy e-commerce application
   hosts: web
   become: true
   gather_facts: true
@@ -12,9 +9,66 @@
     node_port: 3000
     mongo_port: 27017
 
+  pre_tasks:
+    - name: Verify SSH connectivity
+      ping:
+
+    - name: Display hostname
+      command: hostname
+      register: hostname_output
+      changed_when: false
+
+    - name: Show hostname
+      debug:
+        msg: "Connected to {{ hostname_output.stdout }}"
+
+    - name: Check Internet connectivity
+      command: ping -c 3 8.8.8.8
+      register: internet_test
+      changed_when: false
+
+    - name: Show Internet connectivity status
+      debug:
+        var: internet_test.stdout_lines
+
+    - name: Check available disk space
+      command: df -h /
+      register: disk_space
+      changed_when: false
+
+    - name: Display disk space
+      debug:
+        var: disk_space.stdout_lines
+
+    - name: Check memory usage
+      command: free -m
+      register: memory_info
+      changed_when: false
+
+    - name: Display memory information
+      debug:
+        var: memory_info.stdout_lines
+
   roles:
     - docker
     - app
 
+  post_tasks:
+    - name: Verify Docker service
+      systemd:
+        name: docker
+        state: started
+      register: docker_status
 
+    - name: Display Docker status
+      debug:
+        var: docker_status.status.ActiveState
 
+    - name: Check running containers
+      command: docker ps
+      register: containers
+      changed_when: false
+
+    - name: Display running containers
+      debug:
+        var: containers.stdout_lines
