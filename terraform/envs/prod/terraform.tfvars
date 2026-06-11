@@ -15,7 +15,7 @@ availability_zones   = ["us-east-1a", "us-east-1b"]
 # EC2
 instance_type  = "t3.micro"
 instance_count = 2
-key_pair_name  = "ecommerce_keypair"   # ← must exist in AWS
+key_pair_name  = "EC2_KEY"   # ← must exist in AWS
 create_iam_resources = false
 # existing_instance_profile_name = "LabInstanceProfile"  # optional if your lab provides one
 
