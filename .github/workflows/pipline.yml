@@ -187,7 +187,8 @@ jobs:
   destroy:
     name: "Destroy Infrastructure (Manual)"
     runs-on: ubuntu-latest
-    if: github.event.inputs.action == 'destroy'
+    needs: [terraform , ansible]
+    
     
 
     defaults:
