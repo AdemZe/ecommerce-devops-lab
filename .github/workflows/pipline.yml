@@ -66,8 +66,18 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Check EC2 key pair exists
+        run: |
+          KEY_NAME=$(awk -F '"' '/^key_pair_name[[:space:]]*=/{print $2}' terraform.tfvars)
+          if [ -z "$KEY_NAME" ]; then
+            echo "ERROR: key_pair_name is empty in terraform.tfvars"
+            exit 1
+          fi
+          aws ec2 describe-key-pairs --region "${{ secrets.AWS_REGION }}" --key-names "$KEY_NAME" >/dev/null
+          echo "Using EC2 key pair: $KEY_NAME"
+
       - name: Terraform Plan
-        run: terraform plan -out=tfplan -var-file=terraform.tfvars -var "key_pair_name=${{ secrets.EC2_KEY }}"
+        run: terraform plan -out=tfplan -var-file=terraform.tfvars
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
