@@ -5,10 +5,10 @@ output "instance_ids" {
 
 output "instance_public_ips" {
   description = "Public IPs (empty if in private subnet — use private IPs via bastion)"
-  value       = module.web.aws_instance.web[*].public_ip
+  value       = aws_instance.web[*].public_ip
 }
 
 output "instance_private_ips" {
   description = "Private IPs used by Ansible via NAT / bastion"
-  value       = module.web.aws_instance.web[*].private_ip
+  value       = aws_instance.web[*].private_ip
 }

@@ -105,8 +105,15 @@ jobs:
       - name: Export instance IPs + ALB DNS
         id: export_ips
         run: |
-          IPS=$(terraform output -json instance_public_ips | jq -r '.[]' | tr '\n' ',')
-          ALB=$(terraform output -raw alb_dns_name)
+          OUTPUTS_JSON=$(terraform output -json)
+          IPS=$(echo "$OUTPUTS_JSON" | jq -r '.instance_public_ips.value // [] | .[]' | tr '\n' ',' | sed 's/,$//')
+          ALB=$(echo "$OUTPUTS_JSON" | jq -r '.alb_dns_name.value // empty')
+
+          if [ -z "$ALB" ]; then
+            echo "ERROR: Output alb_dns_name is missing. Check terraform/envs/prod/outputs.tf and apply step."
+            exit 1
+          fi
+
           echo "instance_ips=$IPS" >> $GITHUB_OUTPUT
           echo "alb_dns=$ALB"      >> $GITHUB_OUTPUT
           echo "▶ Instances: $IPS"
