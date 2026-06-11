@@ -44,7 +44,6 @@ resource "aws_iam_instance_profile" "ec2" {
 # ── EC2 INSTANCES ────────────────────────────────────────────
 resource "aws_instance" "web" {
   count = var.instance_count
-
   ami                    = var.ami_id
   instance_type          = var.instance_type
   key_name               = var.key_pair_name
