@@ -66,15 +66,35 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      - name: Check EC2 key pair exists
+      - name: Ensure EC2 key pair exists
         run: |
           KEY_NAME=$(awk -F '"' '/^key_pair_name[[:space:]]*=/{print $2}' terraform.tfvars)
           if [ -z "$KEY_NAME" ]; then
             echo "ERROR: key_pair_name is empty in terraform.tfvars"
             exit 1
           fi
-          aws ec2 describe-key-pairs --region "${{ secrets.AWS_REGION }}" --key-names "$KEY_NAME" >/dev/null
-          echo "Using EC2 key pair: $KEY_NAME"
+
+          REGION="${{ secrets.AWS_REGION }}"
+          if aws ec2 describe-key-pairs --region "$REGION" --key-names "$KEY_NAME" >/dev/null 2>&1; then
+            echo "Using existing EC2 key pair: $KEY_NAME"
+            exit 0
+          fi
+
+          echo "Key pair '$KEY_NAME' not found in $REGION. Importing from EC2_KEY secret..."
+          umask 077
+          printf "%s\n" "${{ secrets.EC2_KEY }}" > key.pem
+
+          if ! ssh-keygen -y -f key.pem > key.pub; then
+            echo "ERROR: EC2_KEY secret is not a valid private key"
+            exit 1
+          fi
+
+          aws ec2 import-key-pair \
+            --region "$REGION" \
+            --key-name "$KEY_NAME" \
+            --public-key-material fileb://key.pub >/dev/null
+
+          echo "Imported EC2 key pair: $KEY_NAME"
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan -var-file=terraform.tfvars
