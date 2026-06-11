@@ -188,6 +188,7 @@ jobs:
     name: "Destroy Infrastructure (Manual)"
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'destroy'
+    
 
     defaults:
       run:
